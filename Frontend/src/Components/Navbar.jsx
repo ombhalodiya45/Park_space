@@ -6,7 +6,6 @@ export default function Navbar() {
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 {/* Logo */}
                 <div className="flex items-center space-x-2">
-                    <span className="text-2xl">🚗</span>
                     <h1 className="text-xl font-bold">ParkSpace</h1>
                 </div>
                 
