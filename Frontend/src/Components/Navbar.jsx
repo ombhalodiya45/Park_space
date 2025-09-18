@@ -14,6 +14,7 @@ export default function Navbar() {
                 <div className="hidden md:flex items-center space-x-8">
                     <a href="/" className="hover:text-blue-200 transition-colors">Home</a>
                     <a href="/About" className="hover:text-blue-200 transition-colors">About</a>
+                    <a href="/Booking" className="hover:text-blue-200 transition-colors">Booking</a>
                     <a href="#" className="hover:text-blue-200 transition-colors">Login</a>
                 </div>
                 
