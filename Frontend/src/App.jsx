@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import About from './pages/About';
 import BookingPage from './pages/BookingPage';
 import AdminPage from './pages/AdminPage';
+import SlotReservationPage from './pages/SlotReservationPage';
 
 function App() {
     return (
@@ -16,6 +17,7 @@ function App() {
                     <Route path="/about" element={<About />} />
                     <Route path="/booking" element={<BookingPage />} />
                     <Route path="/admin" element={<AdminPage />} />
+                    <Route path="/slot-reservation/:customCode" element={<SlotReservationPage />} />
                 </Routes>
             </Layout>
         </Router>
