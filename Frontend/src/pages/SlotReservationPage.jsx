@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // Helper function to split the slots array into "pillars" of 10
 const chunk = (arr, size) =>
@@ -6,23 +9,45 @@ const chunk = (arr, size) =>
     arr.slice(i * size, i * size + size)
   );
 
-const ParkingSlots = ({ capacity = 20 }) => { // Using a default capacity of 20 as an example
+export default function SlotReservationPage() {
+  // Get the location name from the URL, which was passed by the BookingPage
+  const { locationName } = useParams();
+
+  // State to hold the spots data fetched from the API
+  const [spots, setSpots] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedSlots, setSelectedSlots] = useState([]);
 
-  // This now dynamically creates the slots based on the capacity prop
-  const slots = Array.from({ length: capacity }, (_, i) => {
-    const slotNumber = i + 1;
-    // You can replace this with your actual data from the backend
-    if (slotNumber % 7 === 0) return { id: `P${slotNumber}`, status: "booked" };
-    if (slotNumber % 4 === 0) return { id: `P${slotNumber}`, status: "notAvailable" };
-    return { id: `P${slotNumber}`, status: "available" };
-  });
+  // useEffect hook to fetch data when the component mounts or locationName changes
+  useEffect(() => {
+    if (!locationName) return;
 
-  // Automatically group the slots into pillars, each containing up to 10 spots
-  const pillars = chunk(slots, 10);
+    const loadSpotsForLocation = async () => {
+      try {
+        const encodedLocationName = encodeURIComponent(locationName);
+        const response = await fetch(`${API_BASE}/spots/location/${encodedLocationName}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch spots for this location.");
+        }
+        const data = await response.json();
+        setSpots(data.spots); // Update state with the spots from the API
+      } catch (e) {
+        console.error("Failed to load spots:", e);
+        alert("Could not load spots for this location.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSpotsForLocation();
+  }, [locationName]); // Dependency array ensures this runs when locationName changes
+
+  // Group the fetched spots into pillars
+  const pillars = chunk(spots, 10);
 
   const toggleSlot = (id, status) => {
-    if (status === "booked" || status === "notAvailable") return;
+    // Only allow selecting 'available' spots
+    if (status !== "available") return;
     setSelectedSlots((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     );
@@ -37,11 +62,15 @@ const ParkingSlots = ({ capacity = 20 }) => { // Using a default capacity of 20 
     return "";
   };
 
+  // Show a loading message while data is being fetched
+  if (loading) {
+    return <div className="text-center p-10">Loading parking spots...</div>;
+  }
+
   return (
     <div className="p-4 sm:p-6 bg-white shadow rounded-lg max-w-5xl mx-auto">
-      {/* Header and Legend remain the same */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg font-bold">BOOK YOUR SLOT</h2>
+        <h2 className="text-lg font-bold">BOOK YOUR SLOT FOR: {locationName}</h2>
         <button className="px-4 py-2 bg-blue-500 text-white rounded">+ Add Filter</button>
       </div>
 
@@ -64,37 +93,35 @@ const ParkingSlots = ({ capacity = 20 }) => { // Using a default capacity of 20 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
         {pillars.map((pillarSlots, index) => (
           <div key={index} className="space-y-6">
-            {/* First row of the pillar (up to 5 spots) */}
             <div className="flex flex-wrap gap-4 justify-center">
               {pillarSlots.slice(0, 5).map((slot) => (
                 <div
-                  key={slot.id}
-                  onClick={() => toggleSlot(slot.id, slot.status)}
+                  key={slot._id} // Use the unique _id from MongoDB
+                  onClick={() => toggleSlot(slot._id, slot.available ? 'available' : 'booked')}
                   className={`w-12 h-20 sm:w-16 sm:h-24 flex items-center justify-center font-semibold rounded cursor-pointer ${getSlotClass(
-                    slot.id,
-                    slot.status
+                    slot._id,
+                    slot.available ? 'available' : 'booked'
                   )}`}
                 >
-                  {slot.id}
+                  {slot.name} {/* Display the spot name, e.g., 'P1' */}
                 </div>
               ))}
             </div>
 
             <p className="text-center text-xs text-gray-500">PILLAR NO {index + 1}</p>
 
-            {/* Second row of the pillar (spots 6-10), only rendered if they exist */}
             {pillarSlots.length > 5 && (
               <div className="flex flex-wrap gap-4 justify-center">
                 {pillarSlots.slice(5, 10).map((slot) => (
                   <div
-                    key={slot.id}
-                    onClick={() => toggleSlot(slot.id, slot.status)}
+                    key={slot._id}
+                    onClick={() => toggleSlot(slot._id, slot.available ? 'available' : 'booked')}
                     className={`w-12 h-20 sm:w-16 sm:h-24 flex items-center justify-center font-semibold rounded cursor-pointer ${getSlotClass(
-                      slot.id,
-                      slot.status
+                      slot._id,
+                      slot.available ? 'available' : 'booked'
                     )}`}
                   >
-                    {slot.id}
+                    {slot.name}
                   </div>
                 ))}
               </div>
@@ -103,13 +130,10 @@ const ParkingSlots = ({ capacity = 20 }) => { // Using a default capacity of 20 
         ))}
       </div>
 
-      {/* Entry / Exit */}
       <div className="flex justify-between text-sm mt-6">
         <span className="ml-4">ENTRY</span>
         <span className="mr-4">EXIT</span>
       </div>
     </div>
   );
-};
-
-export default ParkingSlots;
+}
