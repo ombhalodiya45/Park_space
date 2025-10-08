@@ -5,6 +5,7 @@ const path = require("path");
 
 const connectDB = require("./config/db");
 const spotRoutes = require("./routes/spotRoutes");
+const authRoutes = require("./routes/auth"); // Import auth routes
 const { notFound, errorHandler } = require("./middleware/errorHandler");
 
 dotenv.config();
@@ -28,6 +29,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 // API routes
 app.use("/api/admin/spots", spotRoutes);
+app.use("/api/auth", authRoutes);  // Register auth routes here
 
 // 404 + error handlers
 app.use(notFound);
