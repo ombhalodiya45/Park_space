@@ -30,7 +30,7 @@ export default function SignupPage() {
       const response = await fetch('http://localhost:5000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           fullName: formData.fullName,
           email: formData.email,
           password: formData.password,
@@ -43,7 +43,6 @@ export default function SignupPage() {
 
       if (response.ok) {
         alert('Signup successful! Please add your vehicle information next.');
-        // Redirect to Add Vehicle page (create this page separately)
         navigate('/add-vehicle');
       } else {
         alert(`Signup failed: ${data.message}`);

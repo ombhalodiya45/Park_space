@@ -9,6 +9,7 @@ import AdminPage from './pages/AdminPage';
 import SlotReservationPage from './pages/SlotReservationPage';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
+import AddVehiclePage from './pages/AddVehiclePage';
 
 function App() {
     return (
@@ -22,6 +23,7 @@ function App() {
                     <Route path="/signup" element={<SignupPage />} />
                     <Route path="/login" element={<LoginPage/>}/>
                     <Route path="/slot-reservation/:customCode" element={<SlotReservationPage />} />
+                    <Route path="/add-vehicle" element={<AddVehiclePage />} />
                 </Routes>
             </Layout>
         </Router>

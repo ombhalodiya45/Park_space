@@ -1,14 +1,38 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleLogin = (e) => {
+  // Determines where to redirect after login
+  const from = location.state?.from?.pathname || '/';
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // TODO: Connect this to your backend login API endpoint
-    console.log('Logging in with:', { email, password });
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Store JWT (optional for authentication)
+        localStorage.setItem('token', data.token);
+
+        // Redirect to the intended page or home
+        navigate(from, { replace: true });
+      } else {
+        alert(`Login failed: ${data.message}`);
+      }
+    } catch (error) {
+      alert('Network error during login');
+    }
   };
 
   return (
