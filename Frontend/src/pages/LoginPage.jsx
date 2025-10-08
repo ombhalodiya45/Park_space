@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../Components/AuthContext';
+ // update path if needed
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+  const { login } = useAuth(); // get login setter from context
 
-  // Determines where to redirect after login
   const from = location.state?.from?.pathname || '/';
 
   const handleLogin = async (e) => {
@@ -17,15 +19,15 @@ export default function LoginPage() {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ email, password }),
+        credentials: 'include' // include cookies if your backend uses them
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // Store JWT (optional for authentication)
         localStorage.setItem('token', data.token);
-
-        // Redirect to the intended page or home
+        // Set global user context with returned user object (should include username)
+        login(data.user);
         navigate(from, { replace: true });
       } else {
         alert(`Login failed: ${data.message}`);
@@ -66,7 +68,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label htmlFor="password" name="password" className="sr-only">Password</label>
+              <label htmlFor="password" className="sr-only">Password</label>
               <input
                 id="password"
                 name="password"
@@ -88,7 +90,6 @@ export default function LoginPage() {
                 Remember me
               </label>
             </div>
-
             <div>
               <a href="#" className="font-medium text-blue-600 hover:underline">
                 Forgot your password?

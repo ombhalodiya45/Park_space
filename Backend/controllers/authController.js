@@ -37,7 +37,17 @@ exports.signup = async (req, res) => {
     // Save user to DB
     await newUser.save();
 
-    res.status(201).json({ message: 'User registered successfully' });
+    // Return full user info with status 201
+    res.status(201).json({
+      message: 'User registered successfully',
+      user: {
+        id: newUser._id,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        phoneNumber: newUser.phoneNumber,
+        vehicles: newUser.vehicles
+      }
+    });
 
   } catch (error) {
     console.error('Signup error:', error);
@@ -74,13 +84,20 @@ exports.login = async (req, res) => {
       fullName: user.fullName
     };
 
-    // Sign JWT token
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+    // Sign JWT token with 7 days expiration
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
-    // Return token and user info
+    // Set JWT token in HttpOnly cookie, expires in 7 days
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // secure flag in production
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+      sameSite: "strict"
+    });
+
+    // Return user info (without sending token in JSON)
     res.json({
       message: 'Login successful',
-      token,
       user: {
         id: user._id,
         fullName: user.fullName,

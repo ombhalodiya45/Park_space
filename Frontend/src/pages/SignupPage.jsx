@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // Added useNavigate for redirection
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../Components/AuthContext';
+ // Update path if needed
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -7,10 +9,11 @@ export default function SignupPage() {
     email: '',
     password: '',
     phoneNumber: '',
-    vehicles: [] // Start empty, vehicle info added later
+    vehicles: []
   });
 
   const navigate = useNavigate();
+  const { login } = useAuth(); // Context setter
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -20,7 +23,6 @@ export default function SignupPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Only validating mandatory personal info on signup
     if (!formData.fullName || !formData.email || !formData.password) {
       alert("Please fill in all required fields");
       return;
@@ -35,14 +37,21 @@ export default function SignupPage() {
           email: formData.email,
           password: formData.password,
           phoneNumber: formData.phoneNumber,
-          vehicles: [] // Vehicle info sent as empty initially
+          vehicles: []
         }),
+        credentials: 'include' // include cookies if your backend uses them
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        alert('Signup successful! Please add your vehicle information next.');
+        // Store token if your backend returns one
+        localStorage.setItem('token', data.token);
+
+        // Immediately set global user context (pass returned user object)
+        login(data.user);
+
+        // Redirect user to add vehicle info, or wherever you want
         navigate('/add-vehicle');
       } else {
         alert(`Signup failed: ${data.message}`);
@@ -62,7 +71,6 @@ export default function SignupPage() {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          {/* Personal Information */}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Full Name</label>

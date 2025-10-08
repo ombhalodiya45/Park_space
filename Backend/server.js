@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
+const cookieParser = require("cookie-parser"); // added import
 
 const connectDB = require("./config/db");
 const spotRoutes = require("./routes/spotRoutes");
@@ -17,6 +18,7 @@ const app = express();
 // CORS + JSON
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json());
+app.use(cookieParser()); // added middleware here to read cookies
 
 // Connect DB
 connectDB();
