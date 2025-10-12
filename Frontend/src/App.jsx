@@ -9,6 +9,7 @@ import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import AddVehiclePage from './pages/AddVehiclePage';
 import { AuthProvider } from "./Components/AuthContext";
+import ContactUs from './pages/ContactUs';
  // Ensure correct path
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
                         <Route path="/" element={<Home />} />
                         <Route path="/about" element={<About />} />
                         <Route path="/booking" element={<BookingPage />} />
+                        <Route path="/contact" element={<ContactUs />} />
                         <Route path="/admin" element={<AdminPage />} />
                         <Route path="/signup" element={<SignupPage />} />
                         <Route path="/login" element={<LoginPage />} />

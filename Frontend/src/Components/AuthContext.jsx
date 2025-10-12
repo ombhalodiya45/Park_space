@@ -1,41 +1,68 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true); // optional: guard UI while checking session
 
-  // Fetch current logged-in user when app loads
-  async function getCurrentUser() {
+  // Normalize user to a consistent shape
+  const normalizeUser = (data) => {
+    if (!data) return null;
+    return {
+      id: data.id || data._id || data.userId || null,
+      fullName: data.fullName || data.name || 'User',
+      email: data.email || '',
+      phoneNumber: data.phoneNumber || '',
+      vehicles: data.vehicles || [],
+    };
+  };
+
+  // Fetch current logged-in user on app load
+  const getCurrentUser = async () => {
     try {
-      // Call your backend /me route, include credentials to send cookies
-      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      const res = await fetch('http://localhost:5000/api/auth/me', {
+        credentials: 'include',
+      });
       if (res.ok) {
         const data = await res.json();
-        setUser(data);   // set user info in context
+        setUser(normalizeUser(data));
       } else {
-        setUser(null);   // no user logged in
+        setUser(null);
       }
     } catch (err) {
-      console.error("Failed to fetch current user:", err);
+      console.error('Failed to fetch current user:', err);
       setUser(null);
+    } finally {
+      setAuthLoading(false);
     }
-  }
-
+  };
 
   useEffect(() => {
     getCurrentUser();
   }, []);
 
-
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); // if you add logout backend route
-    setUser(null);
+  // Call this after successful login API to update context
+  const login = (userPayload) => {
+    setUser(normalizeUser(userPayload));
   };
 
+  // Clear cookie-backed session (if backend route exists) and context
+  const logout = async () => {
+    try {
+      await fetch('http://localhost:5000/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (e) {
+      // even if request fails, proceed to clear client state
+    } finally {
+      setUser(null);
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, logout }}>
+    <AuthContext.Provider value={{ user, authLoading, login, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );
