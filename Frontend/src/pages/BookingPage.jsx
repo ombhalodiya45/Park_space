@@ -32,12 +32,12 @@ export default function BookingPage() {
   }, []);
 
   const filtered = spots.filter((s) => {
-    const text = `${s.customCode ?? ""} ${s.name ?? ""} ${s.location ?? ""}`.toLowerCase();
+    const text = `${s._id ?? ""} ${s.name ?? ""} ${s.location ?? ""}`.toLowerCase();
     return text.includes(q.toLowerCase());
   });
 
-  const handleBookNow = (customCode) => {
-    navigate(`/slot-reservation/${customCode}`);
+  const handleBookNow = (id) => {
+    navigate(`/slot-reservation/${id}`);
   };
 
   return (
@@ -46,7 +46,6 @@ export default function BookingPage() {
       <div className="bg-white border-b">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            {/* Title + subtitle */}
             <div className="min-w-0">
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-gray-900">
                 Book Your Parking Slot
@@ -95,26 +94,23 @@ export default function BookingPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filtered.map((slot) => (
+              {filtered.map((slot, index) => (
                 <div
-                  key={slot.customCode}
+                  key={slot._id || index}
                   className="group bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition"
                 >
-                  {/* Title + code */}
                   <div className="flex items-start justify-between">
                     <div className="min-w-0">
                       <h2 className="text-lg font-semibold text-gray-900 truncate">{slot.name}</h2>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{slot.customCode}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{slot._id}</p>
                     </div>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-xs ${slot.available ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                        }`}
+                      className={`px-2 py-0.5 rounded-full text-xs ${slot.available ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
                     >
                       {slot.available ? "Available" : "Full"}
                     </span>
                   </div>
 
-                  {/* Meta */}
                   <div className="mt-4 space-y-1.5">
                     <p className="text-sm text-gray-600">
                       <span className="mr-1.5">📍</span>
@@ -125,10 +121,9 @@ export default function BookingPage() {
                     </p>
                   </div>
 
-                  {/* Action */}
                   <button
                     disabled={!slot.available}
-                    onClick={() => handleBookNow(slot.customCode)}
+                    onClick={() => handleBookNow(slot._id)}
                     className={`mt-4 w-full rounded-lg px-4 py-2 text-sm font-semibold ${slot.available
                       ? "bg-blue-600 text-white hover:bg-blue-700"
                       : "bg-gray-200 text-gray-500 cursor-not-allowed"
@@ -143,7 +138,6 @@ export default function BookingPage() {
         </div>
       </div>
 
-      {/* Mobile bottom action hint */}
       {!loading && filtered.length > 0 && (
         <div className="md:hidden fixed bottom-3 left-3 right-3 pointer-events-none">
           <div className="bg-white/90 backdrop-blur border border-gray-200 rounded-lg p-2 text-center text-xs text-gray-600 shadow-sm">
