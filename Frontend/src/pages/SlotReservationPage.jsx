@@ -3,6 +3,37 @@ import { useParams } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+// Keep static grid; only price is dynamic from admin by-id payload
+const USE_STATIC = true;
+const DEFAULT_PRICE = 50;
+
+// Static two-pillar layout
+const STATIC_LEFT = [
+  { spotNumber: "P1", status: "available" },
+  { spotNumber: "P2", status: "notAvailable" },
+  { spotNumber: "P3", status: "available" },
+  { spotNumber: "P4", status: "notAvailable" },
+  { spotNumber: "P5", status: "available" },
+  { spotNumber: "P6", status: "available" },
+  { spotNumber: "P7", status: "booked" },
+  { spotNumber: "P8", status: "available" },
+  { spotNumber: "P9", status: "available" },
+  { spotNumber: "P10", status: "notAvailable" },
+].map((s) => ({ ...s, pillar: "P" }));
+
+const STATIC_RIGHT = [
+  { spotNumber: "S1", status: "available" },
+  { spotNumber: "S2", status: "available" },
+  { spotNumber: "S3", status: "available" },
+  { spotNumber: "S4", status: "booked" },
+  { spotNumber: "S5", status: "notAvailable" },
+  { spotNumber: "S6", status: "available" },
+  { spotNumber: "S7", status: "available" },
+  { spotNumber: "S8", status: "booked" },
+  { spotNumber: "S9", status: "available" },
+  { spotNumber: "S10", status: "notAvailable" },
+].map((s) => ({ ...s, pillar: "S" }));
+
 const chunk = (arr, size) =>
   Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
     arr.slice(i * size, i * size + size)
@@ -11,97 +42,61 @@ const chunk = (arr, size) =>
 export default function SlotReservationPage() {
   const { id, locationName } = useParams();
 
-  const [doc, setDoc] = useState(null);   // single location (by-id)
-  const [list, setList] = useState([]);   // locations (by-location)
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState([]); // array of spotNumber strings, e.g., "P6"
+  const [doc, setDoc] = useState(null);     // holds admin data including price
+  const [loading, setLoading] = useState(!!id); // only load when id is present
+  const [selected, setSelected] = useState([]);
   const [error, setError] = useState("");
 
-  // Load data
+  // Fetch the spot (for price) when id present
   useEffect(() => {
-    const load = async () => {
+    const loadPrice = async () => {
+      if (!id) {
+        setDoc(null);
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         setError("");
-
-        if (id) {
-          const res = await fetch(`${API_BASE}/admin/spots/by-id/${encodeURIComponent(id)}`);
-          if (!res.ok) throw new Error("Failed to fetch by id");
-          const data = await res.json();
-          setDoc(data || null);
-          setList([]);
-          return;
-        }
-
-        if (locationName) {
-          const res = await fetch(`${API_BASE}/admin/spots/location/${encodeURIComponent(locationName)}`);
-          if (!res.ok) throw new Error("Failed to fetch by location");
-          const data = await res.json();
-          setList(Array.isArray(data?.spots) ? data.spots : []);
-          setDoc(null);
-          return;
-        }
-
-        setDoc(null);
-        setList([]);
+        const res = await fetch(`${API_BASE}/admin/spots/by-id/${encodeURIComponent(id)}`);
+        if (!res.ok) throw new Error("Failed to fetch spot by id");
+        const data = await res.json();
+        setDoc(data || null);
       } catch (e) {
         console.error(e);
-        setError("Could not load parking data.");
+        setError("Could not load price for this spot. Using default.");
+        setDoc(null);
       } finally {
         setLoading(false);
       }
     };
-    load();
-  }, [id, locationName]);
+    loadPrice();
+  }, [id]);
 
-  // Normalize to one set of raw slot objects: [{spotNumber, status, pillar}]
-  const rawSlots = useMemo(() => {
-    if (doc) {
-      const arr = Array.isArray(doc.spots) ? doc.spots : [];
-      if (arr.length > 0) return arr;
-      const total = Number(doc.totalSlots || 0);
-      if (total > 0) {
-        return Array.from({ length: total }, (_, i) => ({
-          spotNumber: `P${i + 1}`,
-          pillar: "P",
-          status: "available",
-        }));
-      }
-      return [];
-    }
-    if (Array.isArray(list) && list.length > 0) {
-      const combined = list.flatMap((d) => (Array.isArray(d.spots) ? d.spots : []));
-      if (combined.length > 0) return combined;
-      const sum = list.reduce((s, d) => s + Number(d.totalSlots || 0), 0);
-      return Array.from({ length: sum }, (_, i) => ({
-        spotNumber: `P${i + 1}`,
-        pillar: "P",
-        status: "available",
-      }));
-    }
-    return [];
-  }, [doc, list]);
+  // Dynamic price from admin (fallback to DEFAULT_PRICE)
+  const pricePerSlot = useMemo(() => {
+    const p = Number(doc?.price);
+    if (Number.isFinite(p) && p >= 0) return p;
+    return DEFAULT_PRICE;
+  }, [doc?.price]);
 
-  // Derive UI items
+  // Build static items (layout remains the same)
   const items = useMemo(() => {
-    // Each item has stable id, label (spotNumber), status
-    return rawSlots.map((s, idx) => ({
-      id: `${doc?._id || "loc"}:${s.spotNumber}:${idx}`,
-      label: s.spotNumber || `P${idx + 1}`,
-      status: s.status || "available",
-      pillar: s.pillar || (String(s.spotNumber || "").toUpperCase().startsWith("S") ? "S" : "P"),
+    return [...STATIC_LEFT, ...STATIC_RIGHT].map((s, idx) => ({
+      id: `${s.pillar}:${s.spotNumber}:${idx}`,
+      label: s.spotNumber,
+      status: s.status,
+      pillar: s.pillar,
     }));
-  }, [rawSlots, doc?._id]);
+  }, []);
 
-  // Split into pillars like the reference UI
   const pItems = items.filter((x) => x.pillar === "P");
   const sItems = items.filter((x) => x.pillar === "S");
   const leftPillars = chunk(pItems, 10);
   const rightPillars = chunk(sItems, 10);
 
-  const pricePerHour = Number(doc?.price || (list[0]?.price ?? 0));
   const selectedCount = selected.length;
-  const totalAmount = selectedCount * pricePerHour;
+  const totalAmount = selectedCount * pricePerSlot;
 
   const toggle = (label, status) => {
     if (status !== "available") return;
@@ -114,54 +109,20 @@ export default function SlotReservationPage() {
     if (selected.includes(label)) return "bg-green-500 text-white shadow-lg";
     if (status === "booked") return "bg-red-500 text-white";
     if (status === "available") return "bg-gray-300";
-    if (status === "notAvailable") return "border-2 border-dashed border-gray-400 text-gray-400";
+    if (status === "notAvailable")
+      return "border-2 border-dashed border-gray-400 text-gray-400";
     return "";
-    // Note: style classes rely on Tailwind from your project setup
   };
-
-  const onBook = async () => {
-    if (selected.length === 0) return alert("Please select at least one slot.");
-    try {
-      // Example booking payload; adjust endpoint to your booking API
-      const payload = {
-        spotId: doc?._id || list[0]?._id,
-        slots: selected,           // ["P6", "P8"]
-        amount: totalAmount,       // simple hourly price * count
-      };
-      // const res = await fetch(`${API_BASE}/bookings`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
-      // if (!res.ok) throw new Error("Booking failed");
-      // const result = await res.json();
-      // alert(`Booked successfully: ${result.reference}`);
-      alert(`Booked: ${selected.join(", ")} | Amount ₹${totalAmount}`);
-      setSelected([]);
-    } catch (e) {
-      console.error(e);
-      alert("Booking failed. Try again.");
-    }
-  };
-
-  if (loading) {
-    return <div className="text-center p-10">Loading parking spots...</div>;
-  }
-  if (error) {
-    return <div className="text-center p-10 text-red-600">{error}</div>;
-  }
 
   const Title = () => (
     <div className="flex justify-between items-center mb-6">
       <div>
-        <h2 className="text-lg font-bold">
-          {doc?.name
-            ? `BOOK YOUR SLOT FOR: ${doc.name}`
-            : locationName
-            ? `BOOK YOUR SLOT FOR: ${locationName}`
-            : "BOOK YOUR SLOT"}
-        </h2>
+        <h2 className="text-lg font-bold">BOOK YOUR SLOT</h2>
         <p className="text-xs text-gray-500 mt-1">
-          Price: ₹{pricePerHour}/hr • Available groups: {leftPillars.length + rightPillars.length || 1}
+          Price: ₹{pricePerSlot}/hr • Available groups: {leftPillars.length + rightPillars.length}
         </p>
       </div>
-      <button className="px-4 py-2 bg-blue-500 text-white rounded">+ Add Filter</button>
+      {/* Filter button removed */}
     </div>
   );
 
@@ -224,7 +185,9 @@ export default function SlotReservationPage() {
     </div>
   );
 
-  const useTwoColumns = leftPillars.length > 0 || rightPillars.length > 0;
+  if (loading) {
+    return <div className="text-center p-10">Loading price…</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -237,21 +200,11 @@ export default function SlotReservationPage() {
 
       <div className="px-4 sm:px-6 lg:px-8 py-6">
         <div className="mx-auto max-w-7xl bg-white shadow rounded-xl p-6 md:p-8">
-          {useTwoColumns ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              {/* Left side: P pillars */}
-              <PillarGrid groups={leftPillars} pillarName="P" />
-              {/* Right side: S pillars */}
-              <PillarGrid groups={rightPillars} pillarName="S" />
-            </div>
-          ) : (
-            // Fallback unified grid if no P/S info present
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              <PillarGrid groups={chunk(items, 10)} pillarName="U" />
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <PillarGrid groups={leftPillars} pillarName="P" />
+            <PillarGrid groups={rightPillars} pillarName="S" />
+          </div>
 
-          {/* Entry/Exit labels */}
           <div className="flex justify-between text-sm mt-6">
             <span className="ml-4">ENTRY</span>
             <span className="mr-4">EXIT</span>
@@ -259,25 +212,29 @@ export default function SlotReservationPage() {
         </div>
       </div>
 
-      {/* Booking details footer */}
+      {/* Booking details */}
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="text-sm text-gray-700">
             <span className="font-semibold">Slot Name</span>: {selected.join(", ") || "—"}
           </div>
           <div className="text-sm text-gray-700">
-            <span className="font-semibold">Total Slots</span>: {selectedCount}
+            <span className="font-semibold">Total Slots</span>: {selected.length}
           </div>
           <div className="text-sm text-gray-700">
-            <span className="font-semibold">Total Amount</span>: ₹{totalAmount}
+            <span className="font-semibold">Total Amount</span>: ₹{selected.length * pricePerSlot}
           </div>
           <button
-            onClick={onBook}
             className={`rounded-lg px-5 py-2 font-semibold ${
-              selectedCount > 0
+              selected.length > 0
                 ? "bg-blue-600 text-white hover:bg-blue-700"
                 : "bg-gray-200 text-gray-500 cursor-not-allowed"
             }`}
+            onClick={() =>
+              alert(
+                `Booked: ${selected.join(", ") || "—"} • Amount ₹${selected.length * pricePerSlot}`
+              )
+            }
           >
             Book Slot
           </button>
@@ -286,4 +243,3 @@ export default function SlotReservationPage() {
     </div>
   );
 }
- 
