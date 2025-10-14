@@ -9,6 +9,7 @@ const spotRoutes = require("./routes/spotRoutes");
 const authRoutes = require("./routes/auth");
 const vehicleRoutes = require("./routes/vehicalinfo");
 const infoRoutes = require("./routes/info");
+const adminAuthRoutes = require("./routes/adminAuth"); // NEW
 const { notFound, errorHandler } = require("./middleware/errorHandler");
 
 dotenv.config();
@@ -45,6 +46,7 @@ app.get("/", (_req, res) => {
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 // API routes (keep these paths stable)
+app.use("/api/admin/auth", adminAuthRoutes); // NEW: register/login admins (owners)
 app.use("/api/admin/spots", spotRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/vehicles", vehicleRoutes);
