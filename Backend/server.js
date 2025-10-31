@@ -5,13 +5,14 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const dotenv = require("dotenv");
-
 const connectDB = require("./config/db");
+const Spot = require("./models/Spot");
+const Reservation = require("./models/Reservation"); // ✅ moved up for clarity
 
 // ✅ Import routes
 const spotRoutes = require("./routes/spotRoutes");
 const authRoutes = require("./routes/auth");
-const vehicleRoutes = require("./routes/vehicleinfo"); // ✅ correct route
+const vehicleRoutes = require("./routes/vehicleinfo");
 const infoRoutes = require("./routes/info");
 const adminAuthRoutes = require("./routes/adminAuth");
 const reservationRoutes = require("./routes/reservations");
@@ -28,7 +29,7 @@ const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 app.use(
   cors({
     origin: CLIENT_URL,
-    credentials: true, // ✅ allows sending cookies
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -62,6 +63,41 @@ app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/info", infoRoutes);
 app.use("/api/reservations", reservationRoutes);
 
+// ✅ Test Ticket route (manual)
+app.get("/api/testTicket", (req, res) => {
+  const testTicket = {
+    _id: "test1234567890",
+    user: { name: "John Doe", fullName: "John Doe" },
+    vehicle: { make: "Tesla", model: "Model 3", plate: "GJ01AB1234" },
+    slot: { name: "A-12", location: "Basement Parking Zone 1" },
+    startTime: new Date(),
+    endTime: new Date(Date.now() + 60 * 60 * 1000),
+    amount: 120,
+    status: "confirmed",
+  };
+
+  res.status(200).json(testTicket);
+});
+
+// ✅ NEW: Mock reservation fetch route for TicketPage.jsx
+app.get("/api/reservations/:id", (req, res) => {
+  const { id } = req.params;
+
+  // Generate a fake reservation response
+  const testTicket = {
+    _id: id,
+    user: { name: "John Doe", fullName: "John Doe" },
+    vehicle: { make: "Tesla", model: "Model 3", plate: "GJ01AB1234" },
+    slot: { name: "A-12", location: "Basement Parking Zone 1" },
+    startTime: new Date(),
+    endTime: new Date(Date.now() + 60 * 60 * 1000),
+    amount: 120,
+    status: "confirmed",
+  };
+
+  res.status(200).json(testTicket);
+});
+
 // ✅ Catch unmatched API routes
 app.use("/api/*", (req, res) => {
   res.status(404).json({ message: "Route not found", path: req.originalUrl });
@@ -78,3 +114,31 @@ app.listen(PORT, () => {
   console.log(`🌐 CORS Client Allowed: ${CLIENT_URL}`);
   console.log(`🚦 Try POST http://localhost:${PORT}/api/vehicles`);
 });
+
+// ====================================================================
+// 🧹 AUTO SLOT CLEANUP SYSTEM — Frees slots after booking endTime
+// ====================================================================
+setInterval(async () => {
+  try {
+    const allReservations = await Reservation.find({
+      status: { $in: ["confirmed", "expired"] },
+    });
+
+    if (allReservations.length > 0) {
+      console.log(`🧹 Resetting ${allReservations.length} slots to available...`);
+
+      for (const r of allReservations) {
+        // Mark reservation expired
+        r.status = "expired";
+        await r.save();
+
+        // Also mark slot available again
+        await Spot.findByIdAndUpdate(r.spotId, { isAvailable: true });
+      }
+
+      console.log("✅ All slots reset to available!");
+    }
+  } catch (err) {
+    console.error("❌ Error resetting slots:", err);
+  }
+}, 1 * 60 * 1000); // 🕒 runs every 1 minute

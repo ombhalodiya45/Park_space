@@ -22,6 +22,7 @@ export default function CheckoutPage() {
   const [billing, setBilling] = useState({ hours: 1 });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
 
   const slotId = state?.spotId || null;
   const locationName = state?.locationName || "-";
@@ -45,18 +46,19 @@ export default function CheckoutPage() {
         }
         setMe(meRes);
 
+        // Fetch vehicles
         let vehs = Array.isArray(meRes.vehicles) ? meRes.vehicles : null;
-        if (!vehs) {
-          vehs = await api("/vehicles").catch(() => []);
-        }
+        if (!vehs) vehs = await api("/vehicles").catch(() => []);
         setVehicles(vehs || []);
         if (vehs?.length) setSelectedVehicleId(vehs[0]._id || "");
 
+        // Fetch slot details
         const spotDoc = await api(`/admin/spots/by-id/${encodeURIComponent(slotId)}`).catch(() => null);
+        if (!spotDoc) throw new Error("Slot not found");
         setSlot(spotDoc);
       } catch (e) {
-        console.error(e);
-        alert("Could not load checkout data.");
+        console.error("Checkout load error:", e);
+        setErrMsg("Could not load checkout data.");
         navigate("/booking", { replace: true });
       } finally {
         setLoading(false);
@@ -65,32 +67,39 @@ export default function CheckoutPage() {
   }, [slotId, navigate]);
 
   const createVehicle = async (payload) => {
-    const v = await api("/vehicles", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        vehicleNumber: payload.plate?.toUpperCase().trim(),
-        brand: payload.make?.toLowerCase().trim(),
-        model: payload.model?.toLowerCase().trim()
-      })
-    });
-    const newVehicle = v.vehicle || v;
-    setVehicles((prev) => [newVehicle, ...prev]);
-    setSelectedVehicleId(newVehicle._id);
+    try {
+      const v = await api("/vehicles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vehicleNumber: payload.plate?.toUpperCase().trim(),
+          brand: payload.make?.trim(),
+          model: payload.model?.trim(),
+        }),
+      });
+      const newVehicle = v.vehicle || v;
+      setVehicles((prev) => [newVehicle, ...prev]);
+      setSelectedVehicleId(newVehicle._id);
+    } catch (e) {
+      console.error("Add vehicle error:", e);
+      alert("Could not add vehicle. Please try again.");
+    }
   };
 
   const clampHours = (n) => Math.max(1, Math.min(MAX_HOURS, Number.isFinite(n) ? n : 1));
 
   const handlePay = async () => {
+    setErrMsg("");
     const hours = clampHours(billing.hours);
     if (hours !== billing.hours) setBilling((b) => ({ ...b, hours }));
-    if (!selectedVehicleId) return alert("Please select or add a vehicle.");
-    if (hours > MAX_HOURS) return alert(`Maximum booking is ${MAX_HOURS} hours.`);
+    if (!selectedVehicleId) {
+      setErrMsg("Select or add a vehicle to continue.");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      // 1) Create hold
-      const hold = await api("/reservations/hold", {
+      const created = await api("/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -98,28 +107,21 @@ export default function CheckoutPage() {
           hours,
           vehicleId: selectedVehicleId,
           slots: slotsSelected,
-          pricePerSlot
-        })
+          pricePerSlot,
+        }),
       });
 
-      const holdId = hold.reservationId || hold._id;
-      if (!holdId) throw new Error("Invalid hold response.");
-
-      // 2) Confirm (simulate payment success)
-      const confirm = await api(`/reservations/${holdId}/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentResult: { status: "success" } })
-      });
-
-      const reservationId = confirm.reservationId || confirm._id;
-      if (!reservationId) throw new Error("Invalid confirm response.");
-
-      // 3) Always navigate to ticket page
+      const reservationId = created.reservationId || created._id;
+      if (!reservationId) throw new Error("Invalid reservation response.");
       navigate(`/ticket/${reservationId}`, { replace: true });
     } catch (e) {
-      console.error(e);
-      alert("Payment or reservation failed. Please try again.");
+      console.error("Payment error:", e);
+      try {
+        const parsed = JSON.parse(String(e.message));
+        setErrMsg(parsed?.message || "Slot not available for selected time.");
+      } catch {
+        setErrMsg("Slot not available for selected time.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -149,7 +151,7 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* Vehicle select/add with improved UI */}
+        {/* Vehicle select/add */}
         <div className="bg-white border rounded-xl p-4">
           <div className="flex items-center justify-between">
             <p className="font-semibold">Vehicle</p>
@@ -201,7 +203,7 @@ export default function CheckoutPage() {
           </details>
         </div>
 
-        {/* Billing with 6-hour max */}
+        {/* Billing */}
         <div className="bg-white border rounded-xl p-4">
           <p className="font-semibold">Billing</p>
           <div className="mt-2 flex items-center gap-3">
@@ -225,17 +227,20 @@ export default function CheckoutPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3">
-          <button className="px-4 py-2 rounded-lg border" onClick={() => navigate(-1)}>
-            Back
-          </button>
-          <button
-            onClick={handlePay}
-            disabled={submitting}
-            className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-          >
-            {submitting ? "Processing..." : "Pay & Reserve"}
-          </button>
+        <div className="flex flex-col items-end gap-2">
+          {errMsg && <div className="text-sm text-red-600">{errMsg}</div>}
+          <div className="flex items-center justify-end gap-3 w-full">
+            <button className="px-4 py-2 rounded-lg border" onClick={() => navigate(-1)}>
+              Back
+            </button>
+            <button
+              onClick={handlePay}
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {submitting ? "Processing..." : "Pay & Reserve"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
