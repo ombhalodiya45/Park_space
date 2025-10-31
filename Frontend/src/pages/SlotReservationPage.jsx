@@ -2,15 +2,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
-
-
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // Keep static grid; only price is dynamic from admin by-id payload
 const USE_STATIC = true;
 const DEFAULT_PRICE = 50;
-
-
 
 // Static two-pillar layout
 const STATIC_LEFT = [
@@ -230,34 +226,38 @@ export default function SlotReservationPage() {
             <span className="font-semibold">Total Amount</span>: ₹{selected.length * pricePerSlot}
           </div>
           <button
-  className={`rounded-lg px-5 py-2 font-semibold ${
-    selected.length > 0
-      ? "bg-blue-600 text-white hover:bg-blue-700"
-      : "bg-gray-200 text-gray-500 cursor-not-allowed"
-  }`}
-  onClick={() => {
-    // Check login using localStorage (assuming you store JWT there)
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      // Redirect to login if not logged in
-      window.location.href = "/login";
-      return;
-    }
-
-    // If logged in and slots selected
-    if (selected.length > 0) {
-      alert(
-        `Booked: ${selected.join(", ")} • Amount ₹${selected.length * pricePerSlot}`
-      );
-    } else {
-      alert("Please select at least one slot before booking.");
-    }
-  }}
->
-  Book Slot
-</button>
-
+            className={`rounded-lg px-5 py-2 font-semibold ${
+              selected.length > 0
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-gray-200 text-gray-500 cursor-not-allowed"
+            }`}
+            onClick={() => {
+              const token = localStorage.getItem("token");
+              if (!token) {
+                // preserve return path so user comes back to same reservation
+                navigate("/login", {
+                  state: { returnTo: `/slot-reservation/${id}` }
+                });
+                return;
+              }
+              if (selected.length === 0) {
+                alert("Please select at least one slot before booking.");
+                return;
+              }
+              // Redirect to checkout with booking details
+              navigate("/checkout", {
+                state: {
+                  spotId: id,
+                  locationName,
+                  slots: selected,
+                  pricePerSlot,
+                  totalAmount: selected.length * pricePerSlot
+                }
+              });
+            }}
+          >
+            Book Slot
+          </button>
         </div>
       </div>
     </div>

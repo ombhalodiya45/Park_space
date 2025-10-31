@@ -11,8 +11,8 @@ import AddVehiclePage from './pages/AddVehiclePage';
 import { AuthProvider } from "./Components/AuthContext";
 import ContactUs from './pages/ContactUs';
 import AdminRegister from './pages/AdminRegister';
+import CheckoutPage from './pages/CheckoutPage'; // NEW
 
-// Public pages show the site Layout (navbar)
 function PublicShell() {
   return (
     <Layout>
@@ -21,7 +21,6 @@ function PublicShell() {
   );
 }
 
-// Admin pages do NOT use the public Layout (no navbar)
 function AdminShell() {
   return <Outlet />;
 }
@@ -39,12 +38,13 @@ function App() {
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/slot-reservation/:customCode" element={<SlotReservationPage />} />
+            <Route path="/slot-reservation/:id" element={<SlotReservationPage />} /> {/* id to match SlotReservationPage */}
             <Route path="/add-vehicle" element={<AddVehiclePage />} />
             <Route path="/adminRegister" element={<AdminRegister />} />
+            <Route path="/checkout" element={<CheckoutPage />} /> {/* NEW route */}
           </Route>
 
-          {/* Admin routes WITHOUT Layout */}
+        {/* Admin routes WITHOUT Layout */}
           <Route element={<AdminShell />}>
             <Route path="/admin" element={<AdminPage />} />
           </Route>
