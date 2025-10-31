@@ -4,9 +4,9 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true); // optional: guard UI while checking session
+  const [authLoading, setAuthLoading] = useState(true);
 
-  // Normalize user to a consistent shape
+  // ✅ Normalize user data
   const normalizeUser = (data) => {
     if (!data) return null;
     return {
@@ -18,21 +18,31 @@ export function AuthProvider({ children }) {
     };
   };
 
-  // Fetch current logged-in user on app load
+  // ✅ Fetch current user using stored token (if available)
   const getCurrentUser = async () => {
     try {
+      const token = localStorage.getItem('token');
+
       const res = await fetch('http://localhost:5000/api/auth/me', {
-        credentials: 'include',
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}), // ✅ attach token if exists
+        },
+        credentials: 'include', // include cookies if backend sets them
       });
+
       if (res.ok) {
         const data = await res.json();
         setUser(normalizeUser(data));
       } else {
         setUser(null);
+        localStorage.removeItem('token'); // clear invalid token
       }
     } catch (err) {
       console.error('Failed to fetch current user:', err);
       setUser(null);
+      localStorage.removeItem('token');
     } finally {
       setAuthLoading(false);
     }
@@ -42,12 +52,12 @@ export function AuthProvider({ children }) {
     getCurrentUser();
   }, []);
 
-  // Call this after successful login API to update context
+  // ✅ Called after successful login
   const login = (userPayload) => {
     setUser(normalizeUser(userPayload));
   };
 
-  // Clear cookie-backed session (if backend route exists) and context
+  // ✅ Logout function
   const logout = async () => {
     try {
       await fetch('http://localhost:5000/api/auth/logout', {
@@ -55,8 +65,9 @@ export function AuthProvider({ children }) {
         credentials: 'include',
       });
     } catch (e) {
-      // even if request fails, proceed to clear client state
+      console.warn('Logout request failed, clearing local state.');
     } finally {
+      localStorage.removeItem('token'); // ✅ clear token
       setUser(null);
     }
   };

@@ -1,11 +1,14 @@
 // src/pages/BookingPage.jsx
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-async function apiGet(path) {
-  const r = await fetch(`${API_BASE}${path}`);
+async function apiGet(path, opts = {}) {
+  const r = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    ...opts,
+  });
   if (!r.ok) throw new Error(`GET ${path} failed`);
   return r.json();
 }
@@ -14,15 +17,21 @@ export default function BookingPage() {
   const [spots, setSpots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [user, setUser] = useState(null); // added
   const navigate = useNavigate();
+  const location = useLocation(); // added
 
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await apiGet("/admin/spots/public/list");
-        setSpots(data);
+        const [spotsData, me] = await Promise.all([
+          apiGet("/admin/spots/public/list"),
+          apiGet("/auth/me").catch(() => null), // tolerate anonymous
+        ]);
+        setSpots(spotsData);
+        setUser(me);
       } catch (e) {
-        console.error("Failed to load spots:", e);
+        console.error("Failed to load:", e);
         alert("Could not load available spots.");
       } finally {
         setLoading(false);
@@ -36,7 +45,25 @@ export default function BookingPage() {
     return text.includes(q.toLowerCase());
   });
 
+  // updated: guard for login + vehicle before proceeding
   const handleBookNow = (id) => {
+    const returnTo = location.pathname + location.search;
+    // not logged in → go login first (and come back)
+    if (!user) {
+      navigate("/login", { state: { returnTo } });
+      return;
+    }
+    // no vehicle on file → go add-vehicle, then return here
+    const hasVehicle =
+      user?.vehicle && (user.vehicle.plate || user.vehicle.number || user.vehicle.regNo);
+    if (!hasVehicle) {
+      navigate("/add-vehicle", {
+        state: { returnTo, after: { kind: "book-slot", spotId: id } },
+        replace: true,
+      });
+      return;
+    }
+    // ready to book
     navigate(`/slot-reservation/${id}`);
   };
 
@@ -124,13 +151,21 @@ export default function BookingPage() {
                   <button
                     disabled={!slot.available}
                     onClick={() => handleBookNow(slot._id)}
-                    className={`mt-4 w-full rounded-lg px-4 py-2 text-sm font-semibold ${slot.available
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-gray-200 text-gray-500 cursor-not-allowed"
-                      }`}
+                    className={`mt-4 w-full rounded-lg px-4 py-2 text-sm font-semibold ${
+                      slot.available
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                    }`}
                   >
                     {slot.available ? "Book Now" : "Unavailable"}
                   </button>
+
+                  {/* Optional hint when no vehicle */}
+                  {!loading && user && slot.available && !(user?.vehicle && (user.vehicle.plate || user.vehicle.number || user.vehicle.regNo)) && (
+                    <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                      Add your vehicle to continue booking.
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
