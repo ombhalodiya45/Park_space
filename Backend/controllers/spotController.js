@@ -1,13 +1,13 @@
 const Spot = require("../models/Spot.js");
 
-// clamp helper
+// Helper: clamp number between min and max
 function clamp(n, min, max) {
   const x = Number(n);
   if (Number.isNaN(x)) return min;
   return Math.max(min, Math.min(x, max));
 }
 
-// Build an array of slots like P1..Pn (you can change prefix/pillar logic here)
+// Build an array of parking slots like P1, P2, P3, ...
 function buildSlots(count, startFrom = 1, prefix = "P", pillar = "P") {
   const out = [];
   for (let i = startFrom; i <= count; i++) {
@@ -27,21 +27,23 @@ const createSpot = async (req, res) => {
       price,
       available = true,
       totalSlots = 0,
-      availableSlots, // may be undefined -> default to totalSlots
-      // optional: custom initial slots; if provided, we will not auto-generate
+      availableSlots,
       spots,
     } = req.body || {};
 
+    // Validation
     if (!name || !location || typeof price === "undefined") {
-      return res.status(400).json({ message: "name, location, price are required" });
+      return res.status(400).json({ message: "name, location, and price are required" });
     }
 
     const total = Number(totalSlots) || 0;
     let avail = typeof availableSlots === "number" ? Number(availableSlots) : total;
     avail = clamp(avail, 0, total);
 
-    // Generate per-slot array unless caller sent one
-    let slotsArray = Array.isArray(spots) ? spots : buildSlots(total, 1, "P", "P");
+    // Auto-generate spots if not provided
+    let slotsArray = Array.isArray(spots)
+      ? spots
+      : buildSlots(total, 1, "P", "P");
 
     const spot = await Spot.create({
       name,
@@ -60,21 +62,24 @@ const createSpot = async (req, res) => {
   }
 };
 
-// @desc    Get all spots (optional filters: q, available)
+// @desc    Get all spots
 // @route   GET /api/admin/spots
 const getSpots = async (req, res, next) => {
   try {
     const { q, available } = req.query;
     const filter = {};
+
     if (q) {
       filter.$or = [
         { name: { $regex: q, $options: "i" } },
         { location: { $regex: q, $options: "i" } },
       ];
     }
+
     if (available === "true" || available === "false") {
       filter.available = available === "true";
     }
+
     const spots = await Spot.find(filter).sort({ createdAt: -1 });
     res.json(spots);
   } catch (err) {
@@ -87,14 +92,14 @@ const getSpots = async (req, res, next) => {
 const getSpotById = async (req, res, next) => {
   try {
     const spot = await Spot.findById(req.params.id);
-    if (!spot) return res.status(404).json({ message: "Not found" });
+    if (!spot) return res.status(404).json({ message: "Spot not found" });
     res.json(spot);
   } catch (err) {
     next(err);
   }
 };
 
-// @desc    Update spot (by :id)
+// @desc    Update spot
 // @route   PUT /api/admin/spots/:id
 const updateSpot = async (req, res, next) => {
   try {
@@ -105,26 +110,27 @@ const updateSpot = async (req, res, next) => {
       available,
       totalSlots,
       availableSlots,
-      // optional: replace slots directly
       spots,
     } = req.body || {};
 
     const spot = await Spot.findById(req.params.id);
-    if (!spot) return res.status(404).json({ message: "Not found" });
+    if (!spot) return res.status(404).json({ message: "Spot not found" });
 
     if (typeof name !== "undefined") spot.name = name;
     if (typeof location !== "undefined") spot.location = location;
     if (typeof price !== "undefined") spot.price = Number(price);
     if (typeof available !== "undefined") spot.available = !!available;
 
-    // If explicit slots array provided, replace and sync totals
+    // Replace slots directly if provided
     if (Array.isArray(spots)) {
       spot.spots = spots;
       spot.totalSlots = spots.length;
-      if (spot.availableSlots > spot.totalSlots) spot.availableSlots = spot.totalSlots;
+      if (spot.availableSlots > spot.totalSlots) {
+        spot.availableSlots = spot.totalSlots;
+      }
     }
 
-    // Else handle numeric totalSlots change by generating/trimming
+    // Handle numeric totalSlots change
     if (typeof totalSlots !== "undefined" && !Array.isArray(spots)) {
       const newTotal = Math.max(0, Number(totalSlots));
       const current = Array.isArray(spot.spots) ? spot.spots.length : 0;
@@ -163,7 +169,7 @@ const updateSpot = async (req, res, next) => {
 const deleteSpot = async (req, res, next) => {
   try {
     const spot = await Spot.findByIdAndDelete(req.params.id);
-    if (!spot) return res.status(404).json({ message: "Not found" });
+    if (!spot) return res.status(404).json({ message: "Spot not found" });
     res.json({ ok: true });
   } catch (err) {
     next(err);

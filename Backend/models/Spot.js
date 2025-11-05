@@ -1,12 +1,12 @@
 const mongoose = require("mongoose");
 
-/* Single physical slot inside a location */
+/* Schema for a single parking slot inside a location */
 const SingleSpotSchema = new mongoose.Schema(
   {
-    // e.g., "P1", "P2", "S1", "S2"
+    // e.g., "P1", "P2"
     spotNumber: { type: String, required: true, trim: true },
-    // Optional grouping hint for UI (e.g., "P" or "S")
-    pillar: { type: String, trim: true, default: "" },
+    // Optional pillar/group indicator
+    pillar: { type: String, trim: true, default: "P" },
     status: {
       type: String,
       enum: ["available", "booked", "notAvailable"],
@@ -16,69 +16,62 @@ const SingleSpotSchema = new mongoose.Schema(
   { _id: false }
 );
 
-// Helpful index to speed lookups inside the array by spotNumber (not a global unique constraint)
+// Local index for efficient queries by spotNumber
 SingleSpotSchema.index({ spotNumber: 1 });
 
-/* Spot/Location document */
+/* Main parking spot schema */
 const SpotSchema = new mongoose.Schema(
   {
     // Display details
-    name: { type: String, required: true, trim: true }, // e.g., "Downtown Garage"
-    address: { type: String, required: false, trim: true, default: "N/A" },
+    name: { type: String, required: true, trim: true },
+    address: { type: String, trim: true, default: "N/A" },
+    location: { type: String, trim: true, default: "" }, // optional location field
 
-    // Pricing and quick availability toggle
-    price: { type: Number, default: 0, min: 0 }, // ₹ per hour
-    available: { type: Boolean, default: true }, // quick on/off
+    // Pricing and availability
+    price: { type: Number, default: 0, min: 0 },
+    available: { type: Boolean, default: true },
 
-    // Admin-editable counts
+    // Slot counts
     totalSlots: { type: Number, required: true, min: 0, default: 0 },
     availableSlots: { type: Number, required: true, min: 0, default: 0 },
 
-    // Optional granular per-slot tracking
+    // Nested array of individual slots
     spots: [SingleSpotSchema],
   },
   { timestamps: true }
 );
 
-/* Virtuals if you still use the spots array */
+/* Virtual properties */
 SpotSchema.virtual("computedTotalSlots").get(function () {
   return Array.isArray(this.spots) ? this.spots.length : 0;
 });
+
 SpotSchema.virtual("computedAvailableSlots").get(function () {
   if (!Array.isArray(this.spots)) return 0;
   return this.spots.filter((s) => s.status === "available").length;
 });
 
-/* Clamp counts */
+/* Validation to keep values consistent */
 SpotSchema.pre("validate", function (next) {
-  if (typeof this.totalSlots === "number" && this.totalSlots < 0) {
-    this.totalSlots = 0;
-  }
-  if (typeof this.availableSlots !== "number") {
-    this.availableSlots = 0;
-  }
+  this.totalSlots = Math.max(0, this.totalSlots);
+  this.availableSlots = Math.max(0, this.availableSlots);
   if (this.availableSlots > this.totalSlots) {
     this.availableSlots = this.totalSlots;
-  }
-  if (this.availableSlots < 0) {
-    this.availableSlots = 0;
   }
   next();
 });
 
-/* Optional: auto-sync the spots array length with totalSlots */
+/* Auto-sync the spot array with totalSlots count */
 SpotSchema.pre("save", function (next) {
-  if (!Array.isArray(this.spots)) return next();
+  if (!Array.isArray(this.spots)) this.spots = [];
 
   const desired = Number(this.totalSlots || 0);
   const current = this.spots.length;
 
   if (desired > current) {
-    const startIdx = current + 1;
-    for (let i = startIdx; i <= desired; i++) {
-      // If you want P/S pillars auto-generated, adjust here based on i
+    for (let i = current + 1; i <= desired; i++) {
       this.spots.push({
-        spotNumber: `P${i}`, // default prefix P; you can alternate to "S" if needed
+        spotNumber: `P${i}`,
         pillar: "P",
         status: "available",
       });
