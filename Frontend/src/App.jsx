@@ -14,6 +14,7 @@ import AdminRegister from "./pages/AdminRegister";
 import AdminSignup from "./pages/AdminSignup";
 import CheckoutPage from "./pages/CheckoutPage";
 import TicketPage from "./pages/TicketPage";
+import BookingTimePage from "./pages/BookingTimePage";
 
 function PublicShell() {
   return (
@@ -40,7 +41,8 @@ function App() {
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/slot-reservation/:id" element={<SlotReservationPage />} />
+            <Route path="/booking-time/:id/:locationName" element={<BookingTimePage />} />
+            <Route path="/slot-reservation/:id/:locationName" element={<SlotReservationPage />} />
             <Route path="/add-vehicle" element={<AddVehiclePage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
             <Route path="/ticket" element={<TicketPage />} />

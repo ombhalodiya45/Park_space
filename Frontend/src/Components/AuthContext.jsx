@@ -19,34 +19,39 @@ export function AuthProvider({ children }) {
   };
 
   // ✅ Fetch current user using stored token (if available)
-  const getCurrentUser = async () => {
-    try {
-      const token = localStorage.getItem('token');
+const getCurrentUser = async () => {
+  const token = localStorage.getItem('token');
 
-      const res = await fetch('http://localhost:5000/api/auth/me', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}), // ✅ attach token if exists
-        },
-        credentials: 'include', // include cookies if backend sets them
-      });
+  if (!token) {           // ← skip the call entirely if no token
+    setAuthLoading(false);
+    return;
+  }
 
-      if (res.ok) {
-        const data = await res.json();
-        setUser(normalizeUser(data));
-      } else {
-        setUser(null);
-        localStorage.removeItem('token'); // clear invalid token
-      }
-    } catch (err) {
-      console.error('Failed to fetch current user:', err);
+  try {
+    const res = await fetch('http://localhost:5000/api/auth/me', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      setUser(normalizeUser(data));
+    } else {
       setUser(null);
-      localStorage.removeItem('token');
-    } finally {
-      setAuthLoading(false);
+      // ✅ do NOT remove token here — login/signup may not have completed yet
     }
-  };
+  } catch (err) {
+    console.error('Failed to fetch current user:', err);
+    setUser(null);
+    // ✅ do NOT remove token on network error
+  } finally {
+    setAuthLoading(false);
+  }
+};
 
   useEffect(() => {
     getCurrentUser();

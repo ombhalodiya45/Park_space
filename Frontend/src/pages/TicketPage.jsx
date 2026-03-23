@@ -3,98 +3,138 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 const api = async (p) => {
   const r = await fetch(API_BASE + p, { credentials: "include" });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 };
 
+const safe = (v, fallback = "-") => (v == null || v === "" ? fallback : v);
+
+const fmt = (d) => {
+  if (!d) return "-";
+  return new Date(d).toLocaleString("en-IN", {
+    day:    "2-digit",
+    month:  "short",
+    year:   "numeric",
+    hour:   "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 export default function TicketPage() {
-  const { id } = useParams();
+  const { id }   = useParams();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
+
+  const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState("");
 
   useEffect(() => {
+    if (!id) { navigate("/booking", { replace: true }); return; }
     (async () => {
       try {
-        console.log("Fetching ticket for ID:", id);
-
-        // Try your backend route
         const res = await api(`/reservations/${id}`);
-        console.log("Ticket fetched:", res);
         setData(res);
       } catch (e) {
         console.error("Ticket load error:", e);
-
-        // 👇 Fallback: show dummy test ticket if backend fails
-        const testTicket = {
-          _id: id || "test1234567890",
-          user: { name: "John Doe", fullName: "John Doe" },
-          vehicle: { make: "Tesla", model: "Model 3", plate: "GJ01AB1234" },
-          slot: { name: "A-12", location: "Basement Parking Zone 1" },
-          startTime: new Date(),
-          endTime: new Date(Date.now() + 60 * 60 * 1000),
-          amount: 120,
-          status: "confirmed",
-        };
-        setData(testTicket);
+        setError("Could not load ticket. The reservation may not exist.");
       } finally {
         setLoading(false);
       }
     })();
   }, [id, navigate]);
 
-  if (loading) return <div className="p-6">Loading ticket…</div>;
-  if (!data) return null;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <p className="text-gray-500">Loading ticket…</p>
+    </div>
+  );
 
-  const safe = (v, d = "-") => (v == null || v === "" ? d : v);
-  const fmt = (d) => new Date(d).toLocaleString();
+  if (error || !data) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+      <p className="text-red-500">{error || "Ticket not found."}</p>
+      <button
+        className="px-4 py-2 rounded-lg bg-blue-600 text-white"
+        onClick={() => navigate("/booking")}
+      >
+        Back to Booking
+      </button>
+    </div>
+  );
 
-  const plate = safe(data.vehicle?.plate)?.toUpperCase();
-  const makeModel = `${safe(data.vehicle?.make)} ${safe(data.vehicle?.model)}`.trim();
-  const slotName = safe(data.slot?.name);
-  const location = safe(data.slot?.location);
-  const start = fmt(data.startTime);
-  const end = fmt(data.endTime);
-  const reservationId = safe(data._id, id);
-  const userName = safe(data.user?.name, safe(data.user?.fullName, "Guest"));
-  const amount = data.amount ?? 0;
+  // ✅ All dynamic fields from real DB response
+  const userName        = safe(data.user?.fullName, safe(data.user?.name, "Guest"));
+  const userEmail       = safe(data.user?.email);
+  const vehicleMake     = safe(data.vehicle?.make);
+  const vehicleModel    = safe(data.vehicle?.model);
+  const vehiclePlate    = safe(data.vehicle?.plate, "").toUpperCase();
+  const slotName        = safe(data.slot?.name);
+  const slotLocation    = safe(data.slot?.location);
+  const startTime       = fmt(data.startTime);
+  const endTime         = fmt(data.endTime);
+  const reservationId   = safe(data._id, id);
+  const confirmCode     = safe(data.confirmationCode);
+  const status          = safe(data.status, "confirmed");
+  const amount          = data.amount ?? 0;
+  const slots           = Array.isArray(data.slots) && data.slots.length > 0
+                            ? data.slots.join(", ")
+                            : slotName;
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <h1 className="text-2xl font-bold text-center">Parking Ticket</h1>
+    <div className="mx-auto max-w-2xl p-4 sm:p-6">
+      <h1 className="text-2xl font-bold text-center mb-6">Parking Ticket</h1>
 
-      <div className="mt-4 bg-white border rounded-xl p-5 grid gap-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white border rounded-xl p-5 grid gap-4 shadow-sm">
+
+        {/* Header row */}
+        <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <p className="text-sm text-gray-500">Customer</p>
-            <p className="font-semibold">{userName}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Customer</p>
+            <p className="font-semibold text-gray-900">{userName}</p>
+            {userEmail !== "-" && (
+              <p className="text-xs text-gray-500 mt-0.5">{userEmail}</p>
+            )}
           </div>
           <div className="text-right">
-            <p className="text-sm text-gray-500">Amount</p>
-            <p className="font-semibold">₹{amount}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Amount Paid</p>
+            <p className="text-xl font-bold text-blue-600">₹{amount}</p>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block ${
+              status === "confirmed"
+                ? "bg-green-100 text-green-700"
+                : "bg-gray-100 text-gray-600"
+            }`}>
+              {status.toUpperCase()}
+            </span>
           </div>
         </div>
 
+        <hr className="border-gray-100" />
+
+        {/* Info grid */}
         <div className="grid sm:grid-cols-2 gap-3">
-          <Info label="Vehicle" value={`${makeModel} • ${plate}`} />
-          <Info label="Parking Slot" value={slotName} />
-          <Info label="Location" value={location} />
-          <Info label="Start - End" value={`${start} → ${end}`} />
-          <Info label="Reservation ID" value={reservationId} />
-          <Info label="Status" value={safe(data.status, "confirmed")} />
+          <Info label="Vehicle"          value={`${vehicleMake} ${vehicleModel} • ${vehiclePlate}`} />
+          <Info label="Parking Slot"     value={slots} />
+          <Info label="Location"         value={slotLocation} />
+          <Info label="Confirmation Code"value={confirmCode} />
+          <Info label="Check In"         value={startTime} />
+          <Info label="Check Out"        value={endTime} />
+          <Info label="Reservation ID"   value={reservationId} mono />
+          <Info label="Status"           value={status} />
         </div>
 
-        <div className="mt-2 flex gap-3 justify-end">
+        {/* Actions */}
+        <div className="mt-2 flex gap-3 justify-end flex-wrap">
           <button
-            className="px-4 py-2 rounded-lg border"
+            className="px-4 py-2 rounded-lg border text-sm font-medium hover:bg-gray-50"
             onClick={() => navigate("/booking")}
           >
             Back to Booking
           </button>
           <button
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
             onClick={() => window.print()}
           >
             Print Ticket
@@ -105,11 +145,13 @@ export default function TicketPage() {
   );
 }
 
-function Info({ label, value }) {
+function Info({ label, value, mono = false }) {
   return (
     <div className="bg-gray-50 border rounded-lg p-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-semibold break-words">{value}</p>
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+      <p className={`text-sm font-semibold break-words text-gray-900 ${mono ? "font-mono text-xs" : ""}`}>
+        {value}
+      </p>
     </div>
   );
 }

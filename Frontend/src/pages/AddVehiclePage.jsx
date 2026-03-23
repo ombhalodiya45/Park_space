@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../Components/AuthContext";
 
 export default function AddVehiclePage() {
+
+  console.log("4. AddVehicle mounted, token:", localStorage.getItem('token')); // ← add
+  
   const [vehicle, setVehicle] = useState({ plate: "", make: "", model: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -30,6 +33,7 @@ export default function AddVehiclePage() {
     try {
       const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:5000/api";
       const token = localStorage.getItem("token");
+      console.log("Token from localStorage:", token);
 
       const res = await fetch(`${API_BASE}/vehicles`, {
         method: "POST",

@@ -13,21 +13,25 @@ const MAX_HOURS = 6;
 
 export default function CheckoutPage() {
   const { state } = useLocation();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
 
-  const [me, setMe] = useState(null);
-  const [slot, setSlot] = useState(null);
-  const [vehicles, setVehicles] = useState([]);
+  const [slot,              setSlot]              = useState(null);
+  const [vehicles,          setVehicles]          = useState([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
-  const [billing, setBilling] = useState({ hours: 1 });
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [errMsg, setErrMsg] = useState("");
+  const [billing,           setBilling]           = useState({ hours: 1 });
+  const [loading,           setLoading]           = useState(true);
+  const [submitting,        setSubmitting]        = useState(false);
+  const [errMsg,            setErrMsg]            = useState("");
 
-  const slotId = state?.spotId || null;
-  const locationName = state?.locationName || "-";
-  const slotsSelected = state?.slots || [];
-  const pricePerSlot = state?.pricePerSlot ?? 0;
+  // ✅ All booking state from previous pages
+  const slotId        = state?.spotId       || null;
+  const locationName  = state?.locationName || "-";
+  const slotsSelected = state?.slots        || [];
+  const pricePerSlot  = state?.pricePerSlot ?? 0;
+  const bookingDate   = state?.bookingDate  || null;
+  const startTime     = state?.startTime    || null;
+  const endTime       = state?.endTime      || null;
+
   const baseAmount = slotsSelected.length * pricePerSlot;
   const amount = useMemo(() => baseAmount * billing.hours, [baseAmount, billing.hours]);
 
@@ -44,7 +48,6 @@ export default function CheckoutPage() {
           navigate("/login", { state: { returnTo: "/checkout" }, replace: true });
           return;
         }
-        setMe(meRes);
 
         // Fetch vehicles
         let vehs = Array.isArray(meRes.vehicles) ? meRes.vehicles : null;
@@ -58,7 +61,6 @@ export default function CheckoutPage() {
         setSlot(spotDoc);
       } catch (e) {
         console.error("Checkout load error:", e);
-        setErrMsg("Could not load checkout data.");
         navigate("/booking", { replace: true });
       } finally {
         setLoading(false);
@@ -66,6 +68,7 @@ export default function CheckoutPage() {
     })();
   }, [slotId, navigate]);
 
+  // ✅ Add vehicle — only vehicle fields, no booking data
   const createVehicle = async (payload) => {
     try {
       const v = await api("/vehicles", {
@@ -73,8 +76,8 @@ export default function CheckoutPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vehicleNumber: payload.plate?.toUpperCase().trim(),
-          brand: payload.make?.trim(),
-          model: payload.model?.trim(),
+          brand:         payload.make?.trim(),
+          model:         payload.model?.trim(),
         }),
       });
       const newVehicle = v.vehicle || v;
@@ -86,12 +89,19 @@ export default function CheckoutPage() {
     }
   };
 
-  const clampHours = (n) => Math.max(1, Math.min(MAX_HOURS, Number.isFinite(n) ? n : 1));
+  const clampHours = (val) => {
+    const n = parseInt(val, 10);
+    if (isNaN(n) || n < 1) return 1;
+    if (n > MAX_HOURS) return MAX_HOURS;
+    return n;
+  };
 
-  const handlePay = async () => {
+  // ✅ Fixed handleReserve — passes booking time, navigates to ticket on success
+  const handleReserve = async () => {
     setErrMsg("");
     const hours = clampHours(billing.hours);
     if (hours !== billing.hours) setBilling((b) => ({ ...b, hours }));
+
     if (!selectedVehicleId) {
       setErrMsg("Select or add a vehicle to continue.");
       return;
@@ -105,36 +115,38 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           slotId,
           hours,
-          vehicleId: selectedVehicleId,
-          slots: slotsSelected,
+          vehicleId:   selectedVehicleId,
+          slots:       slotsSelected,
           pricePerSlot,
+          bookingDate, // ✅ pass booking date
+          startTime,   // ✅ pass start time
+          endTime,     // ✅ pass end time
         }),
       });
 
       const reservationId = created.reservationId || created._id;
       if (!reservationId) throw new Error("Invalid reservation response.");
+
+      // ✅ Navigate to ticket page — correct final destination
       navigate(`/ticket/${reservationId}`, { replace: true });
     } catch (e) {
-      console.error("Payment error:", e);
-      try {
-        const parsed = JSON.parse(String(e.message));
-        setErrMsg(parsed?.message || "Slot not available for selected time.");
-      } catch {
-        setErrMsg("Slot not available for selected time.");
-      }
+      console.error("Reservation error:", e);
+      // ✅ Show error on this page, do NOT navigate away
+      setErrMsg("Booking failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div className="p-6">Loading checkout…</div>;
+  if (loading) return <div className="p-6 text-gray-500">Loading checkout…</div>;
 
   return (
     <div className="mx-auto max-w-3xl p-4 sm:p-6">
       <h1 className="text-2xl font-bold">Checkout</h1>
-      <p className="text-sm text-gray-500 mt-1">Complete vehicle and billing to proceed.</p>
+      <p className="text-sm text-gray-500 mt-1">Review your booking details and confirm.</p>
 
       <div className="mt-6 grid gap-5">
+
         {/* Spot Summary */}
         <div className="bg-white border rounded-xl p-4">
           <div className="flex items-center justify-between">
@@ -143,6 +155,11 @@ export default function CheckoutPage() {
               <p className="font-semibold">{slot?.name}</p>
               <p className="text-sm text-gray-600">{slot?.location || locationName}</p>
               <p className="text-sm text-gray-600">Selected: {slotsSelected.join(", ")}</p>
+              {bookingDate && startTime && (
+                <p className="text-sm text-blue-600 mt-1">
+                  {bookingDate} · {startTime} – {endTime}
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Rate</p>
@@ -151,7 +168,7 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* Vehicle select/add */}
+        {/* Vehicle */}
         <div className="bg-white border rounded-xl p-4">
           <div className="flex items-center justify-between">
             <p className="font-semibold">Vehicle</p>
@@ -175,11 +192,8 @@ export default function CheckoutPage() {
                     </option>
                   ))}
                 </select>
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  ▾
-                </span>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">▾</span>
               </div>
-
               {selectedVehicleId && (
                 <div className="mt-2 text-sm text-gray-700 bg-gray-50 border rounded-lg px-3 py-2">
                   {(() => {
@@ -214,9 +228,17 @@ export default function CheckoutPage() {
               max={MAX_HOURS}
               className="w-28 border rounded-lg px-3 py-2"
               value={billing.hours}
-              onChange={(e) =>
-                setBilling((b) => ({ ...b, hours: clampHours(Number(e.target.value || 1)) }))
-              }
+              onKeyDown={(e) => {
+                if (["-", "+", "e", "E", "."].includes(e.key)) e.preventDefault();
+              }}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") { setBilling((b) => ({ ...b, hours: "" })); return; }
+                setBilling((b) => ({ ...b, hours: clampHours(val) }));
+              }}
+              onBlur={() => {
+                setBilling((b) => ({ ...b, hours: clampHours(b.hours || 1) }));
+              }}
             />
             <span className="text-xs text-gray-500">Max {MAX_HOURS} hours</span>
           </div>
@@ -230,18 +252,22 @@ export default function CheckoutPage() {
         <div className="flex flex-col items-end gap-2">
           {errMsg && <div className="text-sm text-red-600">{errMsg}</div>}
           <div className="flex items-center justify-end gap-3 w-full">
-            <button className="px-4 py-2 rounded-lg border" onClick={() => navigate(-1)}>
+            <button
+              className="px-4 py-2 rounded-lg border hover:bg-gray-50"
+              onClick={() => navigate(-1)}
+            >
               Back
             </button>
             <button
-              onClick={handlePay}
+              onClick={handleReserve}
               disabled={submitting}
               className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              {submitting ? "Processing..." : "Pay & Reserve"}
+              {submitting ? "Reserving..." : "Reserve Slot"}
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );
@@ -249,7 +275,7 @@ export default function CheckoutPage() {
 
 function AddVehicleInline({ onCreated }) {
   const [form, setForm] = useState({ make: "", model: "", plate: "" });
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy]  = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -266,29 +292,15 @@ function AddVehicleInline({ onCreated }) {
   return (
     <form className="mt-3 grid gap-3" onSubmit={submit}>
       <div className="grid sm:grid-cols-3 gap-3">
-        <input
-          className="border rounded-lg px-3 py-2"
-          placeholder="Make"
-          value={form.make}
-          onChange={(e) => setForm({ ...form, make: e.target.value })}
-        />
-        <input
-          className="border rounded-lg px-3 py-2"
-          placeholder="Model"
-          value={form.model}
-          onChange={(e) => setForm({ ...form, model: e.target.value })}
-        />
-        <input
-          className="border rounded-lg px-3 py-2 uppercase"
-          placeholder="Plate"
-          value={form.plate}
-          onChange={(e) => setForm({ ...form, plate: e.target.value })}
-        />
+        <input className="border rounded-lg px-3 py-2" placeholder="Make"
+          value={form.make} onChange={(e) => setForm({ ...form, make: e.target.value })} />
+        <input className="border rounded-lg px-3 py-2" placeholder="Model"
+          value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+        <input className="border rounded-lg px-3 py-2 uppercase" placeholder="Plate"
+          value={form.plate} onChange={(e) => setForm({ ...form, plate: e.target.value })} />
       </div>
-      <button
-        disabled={busy}
-        className="justify-self-end px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
-      >
+      <button disabled={busy}
+        className="justify-self-end px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
         {busy ? "Adding..." : "Add Vehicle"}
       </button>
     </form>

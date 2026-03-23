@@ -32,8 +32,12 @@ exports.signup = async (req, res) => {
 
     await newUser.save();
 
+    const payload = { userId: newUser._id, email: newUser.email }; // ← add
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" }); // ← add
+
     res.status(201).json({
       message: "User registered successfully.",
+      token,
       user: {
         id: newUser._id,
         fullName: newUser.fullName,

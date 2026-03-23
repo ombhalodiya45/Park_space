@@ -45,9 +45,12 @@ export default function SignupPage() {
       const data = await response.json();
 
       if (response.ok) {
+         console.log("Full signup response:", data);       // ← add
+         console.log("Token received:", data.token);
+        
         // Store token if your backend returns one
         localStorage.setItem('token', data.token);
-
+         console.log("3. Token saved to localStorage:", localStorage.getItem('token')); // confirm it saved
         // Immediately set global user context (pass returned user object)
         login(data.user);
 

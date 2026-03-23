@@ -46,26 +46,22 @@ export default function BookingPage() {
   });
 
   // updated: guard for login + vehicle before proceeding
-  const handleBookNow = (id) => {
-    const returnTo = location.pathname + location.search;
-    // not logged in → go login first (and come back)
-    if (!user) {
-      navigate("/login", { state: { returnTo } });
-      return;
-    }
-    // no vehicle on file → go add-vehicle, then return here
-    const hasVehicle =
-      user?.vehicle && (user.vehicle.plate || user.vehicle.number || user.vehicle.regNo);
-    if (!hasVehicle) {
-      navigate("/add-vehicle", {
-        state: { returnTo, after: { kind: "book-slot", spotId: id } },
-        replace: true,
-      });
-      return;
-    }
-    // ready to book
-    navigate(`/slot-reservation/${id}`);
-  };
+  const handleBookNow = (id, locationName) => {  // ← add locationName
+  const returnTo = location.pathname + location.search;
+  if (!user) {
+    navigate("/login", { state: { returnTo } });
+    return;
+  }
+  const hasVehicle = user?.vehicle && (user.vehicle.plate || user.vehicle.number || user.vehicle.regNo);
+  if (!hasVehicle) {
+    navigate("/add-vehicle", {
+      state: { returnTo, after: { kind: "book-slot", spotId: id } },
+      replace: true,
+    });
+    return;
+  }
+  navigate(`/booking-time/${id}/${encodeURIComponent(locationName)}`); // ← updated
+};
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -150,7 +146,7 @@ export default function BookingPage() {
 
                   <button
                     disabled={!slot.available}
-                    onClick={() => handleBookNow(slot._id)}
+                    onClick={() => handleBookNow(slot._id, slot.name + ', '+' ' + slot.location)}
                     className={`mt-4 w-full rounded-lg px-4 py-2 text-sm font-semibold ${
                       slot.available
                         ? "bg-blue-600 text-white hover:bg-blue-700"
